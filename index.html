@@ -83,12 +83,28 @@
     tg.expand(); // Разворачиваем WebApp на весь экран
 
     // Читаем варианты из URL (?items=Паста,Суп,Пицца)
-    const urlParams = new URLSearchParams(window.location.search);
-    const itemsParam = urlParams.get('items');
-    
-    let options = itemsParam 
-      ? itemsParam.split(',') 
-      : ['Паста', 'Суп', 'Пицца', 'Салат', 'Бургер', 'Суши'];
+    // Читаем варианты из URL или из Telegram WebApp initData
+const urlParams = new URLSearchParams(window.location.search);
+let itemsParam = urlParams.get('items');
+
+// Если Telegram сжал параметры в initData
+if (!itemsParam && window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
+    itemsParam = window.Telegram.WebApp.initDataUnsafe.start_param;
+}
+
+let options = [];
+
+if (itemsParam) {
+    options = decodeURIComponent(itemsParam)
+        .split(',')
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+}
+
+// Если варианты передались — берем их, иначе дефолтный набор
+if (options.length === 0) {
+    options = ['Паста', 'Суп', 'Пицца', 'Салат', 'Бургер', 'Суши'];
+}
 
     const colors = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#3742fa', '#70a1ff', '#eccc68'];
     
