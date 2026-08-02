@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Кулинарная Рулетка</title>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      background-color: var(--tg-theme-bg-color, #1a1a1a);
+      color: var(--tg-theme-text-color, #ffffff);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    h2 { margin-bottom: 20px; text-align: center; }
+    .wheel-container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+    }
+    #canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+    .pointer {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-top: 25px solid #ff4757;
+      z-index: 10;
+    }
+    button {
+      margin-top: 30px;
+      padding: 15px 35px;
+      font-size: 18px;
+      font-weight: bold;
+      background: var(--tg-theme-button-color, #ff6b6b);
+      color: var(--tg-theme-button-text-color, #ffffff);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      transition: transform 0.1s;
+    }
+    button:active { transform: scale(0.95); }
+    #result {
+      margin-top: 25px;
+      font-size: 20px;
+      font-weight: bold;
+      text-align: center;
+      color: #2ed573;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🎰 Что будем готовить?</h2>
+  <div class="wheel-container">
+    <div class="pointer"></div>
+    <canvas id="canvas" width="400" height="400"></canvas>
+  </div>
+
+  <button id="spinBtn" onclick="spin()">КРУТИТЬ КОЛЕСО!</button>
+  <div id="result"></div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // Разворачиваем WebApp на весь экран
+
+    // Читаем варианты из URL (?items=Паста,Суп,Пицца)
+    const urlParams = new URLSearchParams(window.location.search);
+    const itemsParam = urlParams.get('items');
+    
+    let options = itemsParam 
+      ? itemsParam.split(',') 
+      : ['Паста', 'Суп', 'Пицца', 'Салат', 'Бургер', 'Суши'];
+
+    const colors = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#3742fa', '#70a1ff', '#eccc68'];
+    
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const numOptions = options.length;
+    const arc = Math.PI * 2 / numOptions;
+    let startAngle = 0;
+    let isSpinning = false;
+
+    function drawWheel() {
+      for (let i = 0; i < numOptions; i++) {
+        const angle = startAngle + i * arc;
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.arc(200, 200, 200, angle, angle + arc, false);
+        ctx.lineTo(200, 200);
+        ctx.fill();
+
+        ctx.save();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 18px Arial";
+        ctx.translate(200 + Math.cos(angle + arc / 2) * 130, 200 + Math.sin(angle + arc / 2) * 130);
+        ctx.rotate(angle + arc / 2 + Math.PI / 2);
+        ctx.fillText(options[i], -ctx.measureText(options[i]).width / 2, 0);
+        ctx.restore();
+      }
+    }
+
+    drawWheel();
+
+    function spin() {
+      if (isSpinning) return;
+      isSpinning = true;
+      document.getElementById('result').innerText = '';
+
+      const spinAngleStart = Math.random() * 10 + 10;
+      let spinTime = 0;
+      const spinTimeTotal = Math.random() * 3000 + 4000; // 4-7 секунд вращения
+
+      function rotate() {
+        spinTime += 30;
+        if (spinTime >= spinTimeTotal) {
+          stopRotate();
+          return;
+        }
+        const spinAngle = spinAngleStart - (spinTime / spinTimeTotal) * spinAngleStart;
+        startAngle += (spinAngle * Math.PI / 180);
+        drawWheel();
+        requestAnimationFrame(rotate);
+      }
+      rotate();
+    }
+
+    function stopRotate() {
+      isSpinning = false;
+      const degrees = startAngle * 180 / Math.PI + 90;
+      const arcd = arc * 180 / Math.PI;
+      const index = Math.floor((360 - degrees % 360) / arcd);
+      const winner = options[(index + numOptions) % numOptions];
+      
+      document.getElementById('result').innerText = `🎉 Выпало: ${winner}!`;
+
+      // Вибрация в Telegram при выигрыше
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('success');
+      }
+
+      // Добавляем кнопку "Выбрать это блюдо"
+      setTimeout(() => {
+        tg.sendData(JSON.stringify({ chosen_dish: winner })); // Отправляем результат обратно в бота
+      }, 1500);
+    }
+  </script>
+</body>
+</html>
