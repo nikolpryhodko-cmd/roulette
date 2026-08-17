@@ -65,70 +65,98 @@
       text-align: center;
       color: #2ed573;
     }
+
+    /* Добавленные правила: контрастный черный текст для секторов и canvas */
+    .wheel-text, .sector-text, canvas {
+      color: #000000 !important;
+      fill: #000000 !important;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
 
-  <h2>🎰 Что будем готовить?</h2>
+  <h2 id="wheel-title">🎰 Что будем готовить?</h2>
   <div class="wheel-container">
     <div class="pointer"></div>
     <canvas id="canvas" width="400" height="400"></canvas>
   </div>
 
-  <button id="spinBtn" onclick="spin()">КРУТИТЬ КОЛЕСО!</button>
+  <button id="spin-btn" onclick="spin()">КРУТИТЬ КОЛЕСО!</button>
   <div id="result"></div>
 
   <script>
-    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    // Инициализация Telegram WebApp и мультиязычность
+    const tg = window.Telegram?.WebApp;
     if (tg && typeof tg.expand === 'function') {
       try { tg.expand(); } catch (e) { /* ignore */ }
     }
 
+    const userLang = tg?.initDataUnsafe?.user?.language_code || 'ru';
+
+    const translations = {
+      en: {
+        spinBtn: "🎲 Spin the Wheel!",
+        title: "Culinary Roulette"
+      },
+      uk: {
+        spinBtn: "🎲 Крутити колесо!",
+        title: "Кулінарна Рулетка"
+      },
+      ru: {
+        spinBtn: "🎲 Вращать колесо!",
+        title: "Кулинарная Рулетка"
+      }
+    };
+
+    let currentLang = 'ru';
+    if (typeof userLang === 'string') {
+      if (userLang.startsWith('uk') || userLang.startsWith('ua')) {
+        currentLang = 'uk';
+      } else if (userLang.startsWith('en')) {
+        currentLang = 'en';
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById('spin-btn');
+      const title = document.getElementById('wheel-title');
+
+      if (btn) btn.innerText = translations[currentLang].spinBtn;
+      if (title) title.innerText = translations[currentLang].title;
+      document.title = translations[currentLang].title;
+    });
+
     // --- Utility: безопасное декодирование ---
     function decodeSafe(s) {
       if (!s && s !== '') return '';
-      // Replace pluses with spaces (in case the value was form-encoded)
       s = String(s).replace(/\+/g, ' ');
       try {
         return decodeURIComponent(s);
       } catch (e) {
-        // Если decodeURIComponent ломается на неожиданных последовательностях,
-        // возвращаем оригинальную (с уже заменёнными плюсами) строку.
         return s;
       }
     }
 
-    // Попытка распарсить items из строки. Поддерживает:
-    // - plain comma-separated (e.g. "Макароны, Омлет, Стейк")
-    // - percent-encoded
-    // - query-like strings ("items=...&foo=bar")
     function parseItemsFromString(raw) {
       if (raw == null) return null;
       raw = String(raw).trim();
       if (raw === '') return null;
 
-      // Если строка выглядит как query-string (с '=' или '&'), пробуем URLSearchParams
       if (raw.includes('=') || raw.includes('&')) {
         try {
           const sp = new URLSearchParams(raw);
           let v = sp.get('items');
-          if (v == null) {
-            // Если нет ключа items, возможно весь raw — это значение
-            v = raw;
-          }
+          if (v == null) v = raw;
           v = decodeSafe(v);
           return v.split(',').map(i => i.trim()).filter(i => i.length > 0);
-        } catch (e) {
-          // fallthrough to naive parsing
-        }
+        } catch (e) {}
       }
 
-      // Иначе — обычный CSV-like список
       const decoded = decodeSafe(raw);
       return decoded.split(',').map(i => i.trim()).filter(i => i.length > 0);
     }
 
-    // --- Чтение параметров items: сначала из window.location.search, затем из Telegram start_param ---
     let itemsParam = null;
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -136,28 +164,23 @@
       if (itemsFromUrl) {
         itemsParam = itemsFromUrl;
       } else if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
-        // start_param может быть просто списком "A,B,C" или query-string "items=A,B,C"
         itemsParam = tg.initDataUnsafe.start_param;
       }
     } catch (e) {
-      // В необычных окружениях URLSearchParams может бросать — игнорируем и пробуем tg.initDataUnsafe
       if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
         itemsParam = tg.initDataUnsafe.start_param;
       }
     }
 
-    // Парсим items в массив options
     const parsed = parseItemsFromString(itemsParam);
     let options = Array.isArray(parsed) && parsed.length > 0
       ? parsed
       : ['Паста', 'Суп', 'Пицца', 'Салат', 'Бургер', 'Суши'];
 
-    // Защита: если полученный массив пустой — ставим дефолт
     if (!options || options.length === 0) {
       options = ['Паста', 'Суп', 'Пицца', 'Салат', 'Бургер', 'Суши'];
     }
 
-    // --- Настройка canvas и рисования ---
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const numOptions = options.length;
@@ -165,11 +188,9 @@
     let startAngle = 0;
     let isSpinning = false;
 
-    // Набор цветов (если хотите, поменяйте/расширьте)
     const colors = ['#ff7675', '#74b9ff', '#55efc4', '#ffeaa7', '#a29bfe', '#fd79a8', '#00cec9', '#fdcb6e'];
 
     function drawWheel() {
-      // Очистка холста перед перерисовкой
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (let i = 0; i < numOptions; i++) {
@@ -181,18 +202,15 @@
         ctx.lineTo(200, 200);
         ctx.fill();
 
-        // Текст
         ctx.save();
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#000000";
         ctx.font = "bold 18px Arial";
         ctx.translate(200 + Math.cos(angle + arc / 2) * 130, 200 + Math.sin(angle + arc / 2) * 130);
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
         const text = options[i];
-        // Поддержка переноса слишком длинного текста (тривиально)
         if (ctx.measureText(text).width < 140) {
           ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
         } else {
-          // Разбиваем по пробелам на две строки
           const parts = text.split(' ');
           const half = Math.ceil(parts.length / 2);
           const line1 = parts.slice(0, half).join(' ');
@@ -206,7 +224,6 @@
 
     drawWheel();
 
-    // --- Вращение ---
     function spin() {
       if (isSpinning) return;
       isSpinning = true;
@@ -214,7 +231,7 @@
 
       const spinAngleStart = Math.random() * 10 + 10;
       let spinTime = 0;
-      const spinTimeTotal = Math.random() * 3000 + 4000; // 4-7 секунд вращения
+      const spinTimeTotal = Math.random() * 3000 + 4000;
 
       function rotate() {
         spinTime += 30;
@@ -239,12 +256,10 @@
 
       document.getElementById('result').innerText = `🎉 Выпало: ${winner}!`;
 
-      // Вибрация в Telegram при выигрыше
       if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === 'function') {
         try { tg.HapticFeedback.notificationOccurred('success'); } catch (e) { /* ignore */ }
       }
 
-      // Отправляем результат обратно в бота (если доступно)
       setTimeout(() => {
         if (tg && typeof tg.sendData === 'function') {
           try { tg.sendData(JSON.stringify({ chosen_dish: winner })); } catch (e) { /* ignore */ }
