@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Кулинарная Рулетка</title>
+  <title>🎰 Culinary Roulette</title>
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
@@ -76,7 +76,7 @@
 </head>
 <body>
 
-  <h2 id="wheel-title">🎰 Что будем готовить?</h2>
+  <h2 id="wheel-title">🎰 Кулинарная Рулетка</h2>
   <div class="wheel-container">
     <div class="pointer"></div>
     <canvas id="canvas" width="400" height="400"></canvas>
@@ -92,30 +92,20 @@
       try { tg.expand(); } catch (e) { /* ignore */ }
     }
 
-    const userLang = tg?.initDataUnsafe?.user?.language_code || 'ru';
+    const urlParams = new URLSearchParams(window.location.search);
+    const langParam = urlParams.get('lang');
+    const userLang = langParam || tg?.initDataUnsafe?.user?.language_code || 'ru';
 
     const translations = {
-      en: {
-        spinBtn: "🎲 Spin the Wheel!",
-        title: "Culinary Roulette"
-      },
-      uk: {
-        spinBtn: "🎲 Крутити колесо!",
-        title: "Кулінарна Рулетка"
-      },
-      ru: {
-        spinBtn: "🎲 Вращать колесо!",
-        title: "Кулинарная Рулетка"
-      }
+      en: { spinBtn: "🎲 Spin the Wheel!", title: "🎰 Culinary Roulette", winPrefix: "🎉 You got: " },
+      uk: { spinBtn: "🎲 Крутити колесо!", title: "🎰 Кулінарна Рулетка", winPrefix: "🎉 Випало: " },
+      ru: { spinBtn: "🎲 Вращать колесо!", title: "🎰 Что будем готовить?", winPrefix: "🎉 Выпало: " }
     };
 
     let currentLang = 'ru';
     if (typeof userLang === 'string') {
-      if (userLang.startsWith('uk') || userLang.startsWith('ua')) {
-        currentLang = 'uk';
-      } else if (userLang.startsWith('en')) {
-        currentLang = 'en';
-      }
+      if (userLang.startsWith('uk') || userLang.startsWith('ua')) { currentLang = 'uk'; }
+      else if (userLang.startsWith('en')) { currentLang = 'en'; }
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -254,7 +244,7 @@
       const index = Math.floor((360 - degrees % 360) / arcd);
       const winner = options[(index + numOptions) % numOptions];
 
-      document.getElementById('result').innerText = `🎉 Выпало: ${winner}!`;
+      document.getElementById('result').innerText = `${translations[currentLang].winPrefix}${winner}!`;
 
       if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === 'function') {
         try { tg.HapticFeedback.notificationOccurred('success'); } catch (e) { /* ignore */ }
